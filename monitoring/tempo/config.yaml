@@ -1,12 +1,16 @@
 server:
   http_listen_port: 3200
+  http_listen_address: 0.0.0.0 # 모든 인터페이스에서 리스닝
+  log_level: info
 
 distributor:
   receivers:
     otlp:
       protocols:
         grpc:
-          endpoint: 0.0.0.0:4317
+          endpoint: 0.0.0.0:4317 # localhost 대신 모든 인터페이스
+        http:
+          endpoint: 0.0.0.0:4318 # localhost 대신 모든 인터페이스
 
 storage:
   trace:

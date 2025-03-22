@@ -14,17 +14,20 @@ services:
   tempo:
     image: grafana/tempo:latest
     command: [ "-config.file=/etc/tempo.yaml" ]
+    user: "0" # root 사용자로 실행 (권한 문제 해결)
     volumes:
       - ./monitoring/tempo/config.yaml:/etc/tempo.yaml
       - tempo-data:/var/tempo/data
     ports:
       - "3200:3200" # Tempo UI
       - "4317:4317" # OTLP gRPC
+      - "4318:4318" # otlp http
     networks:
       - monitoring-network
 
   grafana:
     image: grafana/grafana:latest
+    user: "0" # root 사용자로 실행 (권한 문제 해결)
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana

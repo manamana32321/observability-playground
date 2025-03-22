@@ -66,6 +66,56 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 	return tp, nil
 }
 
+// 주기적인 더미 요청 생성을 위한 함수 추가
+func startPeriodicRequests(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				generateDummyTraces()
+			}
+		}
+	}()
+	log.Printf("주기적인 더미 요청 생성기가 시작되었습니다 (간격: %v)", interval)
+}
+
+// 다양한 엔드포인트에 더미 요청을 보내는 함수
+func generateDummyTraces() {
+	ctx := context.Background()
+	_, span := tracer.Start(ctx, "periodic-dummy-request")
+	defer span.End()
+
+	endpoints := []string{"/", "/health", "/slow", "/error"}
+
+	// 무작위 엔드포인트 선택
+	endpoint := endpoints[rand.Intn(len(endpoints))]
+
+	// 내부적으로 HTTP 요청 생성
+	client := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
+
+	reqURL := fmt.Sprintf("http://localhost:8080%s", endpoint)
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		log.Printf("더미 요청 생성 실패: %v", err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("dummy.request.url", reqURL))
+	span.SetAttributes(attribute.String("dummy.request.type", "periodic"))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("더미 요청 실패: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	log.Printf("더미 요청 완료: %s, 상태: %d", endpoint, resp.StatusCode)
+}
+
 func main() {
 	// 트레이서 초기화
 	tp, err := initTracer()
@@ -77,6 +127,9 @@ func main() {
 			log.Printf("Error shutting down tracer provider: %v", err)
 		}
 	}()
+
+	// 주기적인 더미 요청 시작 (5초마다)
+	startPeriodicRequests(5 * time.Second)
 
 	// 핸들러를 OpenTelemetry로 감싸기
 	http.Handle("/", otelhttp.NewHandler(http.HandlerFunc(homeHandler), "home"))
