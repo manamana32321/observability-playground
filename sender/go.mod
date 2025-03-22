@@ -1,4 +1,4 @@
-module observability-playground/app
+module observability-playground/sender
 
 go 1.22.0
 

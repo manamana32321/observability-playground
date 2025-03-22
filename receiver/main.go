@@ -1,16 +1,15 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2" // EC2 서비스 클라이언트 임포트
+	"context"
+	"math/rand"
+
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,8 +19,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
-
-	otelaws "go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws" // AWS 계측 추가
 )
 
 var tracer trace.Tracer
@@ -48,7 +45,7 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 	// 리소스 설정 (서비스 이름 등)
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
-			semconv.ServiceNameKey.String("monitoring-test-app"),
+			semconv.ServiceNameKey.String("monitoring-test-receiver"),
 			attribute.String("environment", "dev"),
 		),
 	)
@@ -65,59 +62,9 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 	otel.SetTracerProvider(tp)
 
 	// 글로벌 tracer 설정
-	tracer = tp.Tracer("monitoring-test-app")
+	tracer = tp.Tracer("monitoring-test-receiver")
 
 	return tp, nil
-}
-
-// 주기적인 더미 요청 생성을 위한 함수 추가
-func startPeriodicRequests(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				generateDummyTraces()
-			}
-		}
-	}()
-	log.Printf("주기적인 더미 요청 생성기가 시작되었습니다 (간격: %v)", interval)
-}
-
-// 다양한 엔드포인트에 더미 요청을 보내는 함수
-func generateDummyTraces() {
-	ctx := context.Background()
-	_, span := tracer.Start(ctx, "periodic-dummy-request")
-	defer span.End()
-
-	endpoints := []string{"/", "/health", "/slow", "/error"}
-
-	// 무작위 엔드포인트 선택
-	endpoint := endpoints[rand.Intn(len(endpoints))]
-
-	// 내부적으로 HTTP 요청 생성
-	client := &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
-
-	reqURL := fmt.Sprintf("http://localhost:8080%s", endpoint)
-	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
-	if err != nil {
-		log.Printf("더미 요청 생성 실패: %v", err)
-		return
-	}
-
-	span.SetAttributes(attribute.String("dummy.request.url", reqURL))
-	span.SetAttributes(attribute.String("dummy.request.type", "periodic"))
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("더미 요청 실패: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	log.Printf("더미 요청 완료: %s, 상태: %d", endpoint, resp.StatusCode)
 }
 
 func main() {
@@ -132,25 +79,6 @@ func main() {
 		}
 	}()
 
-	// AWS SDK 클라이언트 생성 및 계측 (EC2 예시)
-	awsCfg, awsErr := config.LoadDefaultConfig(context.TODO())
-	if awsErr != nil {
-		log.Printf("AWS 설정 로드 실패: %v", awsErr)
-	} else {
-		ec2Client := ec2.NewFromConfig(awsCfg, func(o *ec2.Options) {
-			otelaws.AppendMiddlewares(&o.APIOptions)
-		})
-		log.Printf("EC2 클라이언트가 AWS 계측으로 설정되었습니다: %v", ec2Client)
-		// 이제 ec2Client를 사용하여 AWS EC2와 통신하면 트레이싱 정보가 자동으로 포함됩니다.
-		_, err = ec2Client.DescribeInstances(context.TODO(), nil)
-		if err != nil {
-			log.Printf("EC2 인스턴스 정보 조회 실패: %v", err)
-		}
-	}
-
-	// 주기적인 더미 요청 시작 (5초마다)
-	startPeriodicRequests(5 * time.Second)
-
 	// 핸들러를 OpenTelemetry로 감싸기
 	http.Handle("/", otelhttp.NewHandler(http.HandlerFunc(homeHandler), "home"))
 	http.Handle("/health", otelhttp.NewHandler(http.HandlerFunc(healthHandler), "health"))
@@ -158,10 +86,10 @@ func main() {
 	http.Handle("/error", otelhttp.NewHandler(http.HandlerFunc(errorHandler), "error"))
 
 	// 서버 시작
-	port := 8080
-	log.Printf("서버가 포트 %d에서 시작됩니다...", port)
+	port := 8081 // sender와 다른 포트 사용
+	log.Printf("수신 서버가 포트 %d에서 시작됩니다...", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-		log.Fatalf("서버 시작 실패: %v", err)
+		log.Fatalf("수신 서버 시작 실패: %v", err)
 	}
 }
 
@@ -171,10 +99,10 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	_, span := tracer.Start(ctx, "home-handler")
 	defer span.End()
 
-	log.Printf("홈페이지 요청: %s %s", r.Method, r.URL.Path)
+	log.Printf("수신: 홈페이지 요청: %s %s", r.Method, r.URL.Path)
 	span.SetAttributes(attribute.String("http.method", r.Method))
 
-	fmt.Fprintf(w, "Hello, World! 모니터링 테스트 서버입니다.\n")
+	fmt.Fprintf(w, "수신 서버: Hello, World!\n")
 }
 
 // 상태 확인 핸들러
@@ -183,9 +111,9 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	_, span := tracer.Start(ctx, "health-handler")
 	defer span.End()
 
-	log.Printf("상태 확인 요청: %s %s", r.Method, r.URL.Path)
+	log.Printf("수신: 상태 확인 요청: %s %s", r.Method, r.URL.Path)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "상태: 정상\n")
+	fmt.Fprintf(w, "수신 서버: 상태: 정상\n")
 }
 
 // 느린 응답을 생성하는 핸들러
