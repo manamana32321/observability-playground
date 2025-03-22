@@ -16,7 +16,7 @@ jobs:
         run: sudo docker compose --profile sender up -d
 
   deploy-receiver-and-monitoring:
-    runs-on: receiver, monitoring
+    runs-on: receiver
     steps:
       - name: Checkout
         uses: actions/checkout@v4
