@@ -1,0 +1,6 @@
+services:
+  app:
+    build:
+      context: ./app
+    environment:
+      - name=value
