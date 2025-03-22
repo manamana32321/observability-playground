@@ -2,5 +2,5 @@ services:
   app:
     build:
       context: ./app
-    environment:
-      - name=value
+    ports:
+      - 8080:8080
