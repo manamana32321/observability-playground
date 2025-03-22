@@ -12,3 +12,7 @@ datasources:
     editable: true
     apiVersion: 1
     uid: tempo
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: ""
