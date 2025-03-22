@@ -1,6 +1,6 @@
 services:
   sender:
-    # profiles: [ "sender" ]
+    profiles: [ "sender" ]
     build:
       context: ./sender
     ports:
@@ -9,7 +9,7 @@ services:
       - monitoring-network
 
   receiver:
-    # profiles: [ "receiver" ]
+    profiles: [ "receiver" ]
     build:
       context: ./receiver
     ports:
@@ -22,7 +22,7 @@ services:
       - monitoring-network
 
   tempo:
-    # profiles: [ "monitoring" ]
+    profiles: [ "monitoring" ]
     image: grafana/tempo:latest
     command: [ "-config.file=/etc/tempo.yaml" ]
     user: "0" # root 사용자로 실행 (권한 문제 해결)
@@ -37,7 +37,7 @@ services:
       - monitoring-network
 
   grafana:
-    # profiles: [ "monitoring" ]
+    profiles: [ "monitoring" ]
     image: grafana/grafana:latest
     user: "0" # root 사용자로 실행 (권한 문제 해결)
     volumes:
