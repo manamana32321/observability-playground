@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2" // EC2 서비스 클라이언트 임포트
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,6 +20,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
+
+	otelaws "go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws" // AWS 계측 추가
 )
 
 var tracer trace.Tracer
@@ -127,6 +131,22 @@ func main() {
 			log.Printf("Error shutting down tracer provider: %v", err)
 		}
 	}()
+
+	// AWS SDK 클라이언트 생성 및 계측 (EC2 예시)
+	awsCfg, awsErr := config.LoadDefaultConfig(context.TODO())
+	if awsErr != nil {
+		log.Printf("AWS 설정 로드 실패: %v", awsErr)
+	} else {
+		ec2Client := ec2.NewFromConfig(awsCfg, func(o *ec2.Options) {
+			otelaws.AppendMiddlewares(&o.APIOptions)
+		})
+		log.Printf("EC2 클라이언트가 AWS 계측으로 설정되었습니다: %v", ec2Client)
+		// 이제 ec2Client를 사용하여 AWS EC2와 통신하면 트레이싱 정보가 자동으로 포함됩니다.
+		_, err = ec2Client.DescribeInstances(context.TODO(), nil)
+		if err != nil {
+			log.Printf("EC2 인스턴스 정보 조회 실패: %v", err)
+		}
+	}
 
 	// 주기적인 더미 요청 시작 (5초마다)
 	startPeriodicRequests(5 * time.Second)
