@@ -16,7 +16,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./monitoring/tempo/config.yaml:/etc/tempo.yaml
-      - tempo-data:/tmp/tempo
+      - tempo-data:/var/tempo/data
     ports:
       - "3200:3200" # Tempo UI
       - "4317:4317" # OTLP gRPC
@@ -26,7 +26,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
